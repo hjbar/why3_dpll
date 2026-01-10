@@ -69,11 +69,30 @@ predicate ok_cls (mm: assignment) (na: int) (c: cls) =
    assignment `mm` cannot possibly be extended to a model. *)
 
 let scan (mm: assignment) (cl: array cls) (nv na nc: int) : (b: bool, mc: int)
+  requires { (0 < length mm) /\ (length mm = nv) }
+  requires { 0 < na <= nv }
+  requires { 0 <= nc <= length cl }
+  requires { forall i. 0 <= i < length cl -> is_cls nv cl[i] }
+  requires { forall i. nc <= i < length cl -> ok_cls mm na cl[i] }
+
+  writes { cl }
+
+  ensures { forall i. 0 <= i < length cl -> is_cls nv cl[i] }
+  ensures { 0 <= mc <= nc }
+  ensures { forall i. mc <= i < length cl -> ok_cls mm na cl[i] }
+  (* ensures { permut_all (old cl) cl } *)
 =
   let ref i = 0 in
   let ref mc = nc in
 
   while i < mc do
+    variant { mc - i }
+
+    invariant { 0 <= i <= mc }
+    invariant { forall j. 0 <= j < length cl -> is_cls nv cl[j] }
+    invariant { 0 <= mc <= nc }
+    invariant { forall j. mc <= j < length cl -> ok_cls mm na cl[j] }
+
     let (l1, l2, l3) = cl[i] in
 
     if (abs l1 < na && mm[abs l1] <> l1) ||
@@ -102,6 +121,19 @@ let scan (mm: assignment) (cl: array cls) (nv na nc: int) : (b: bool, mc: int)
    if `mm` cannot possibly be extended to a model. *)
 
 let rec dpll (mm: assignment) (cl: array cls) (nv na nc: int) : (s: bool)
+  requires { (0 < length mm) /\ (length mm = nv) }
+  requires { 0 < na <= nv }
+  requires { 0 <= nc <= length cl }
+  requires { forall i. 0 <= i < length cl -> is_cls nv cl[i] }
+  requires { forall i. nc <= i < length cl -> ok_cls mm na cl[i] }
+
+  variant { nv - na }
+
+  writes { cl }
+  writes { mm }
+
+  ensures { forall i. 0 <= i < length cl -> is_cls nv cl[i] }
+  ensures { exists mc. 0 <= mc <= nc -> forall i. mc <= i < length cl -> ok_cls mm na cl[i] }
 =
   let (b, mc) = scan mm cl nv na nc in
 

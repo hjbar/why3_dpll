@@ -1,0 +1,120 @@
+% ------------------------------------------------------------------------------------------
+
+\section{Introduction}
+
+L'objectif de ce projet est d'implémenter un algorithme DPLL pour 3-SAT vérifié avec \whythree\ comme décrit dans le \sujet. L'archive contenant le code source est disponible sur \github.
+
+Pour ce faire, nous avons dû compléter le squelette de code fourni, c'est-à-dire compléter la définition des fonctions \scan\ et \dpll\ du fichier \texttt{dpll.mlw}. Ainsi, dans les sections suivantes, on présentera l'implémentation et la vérification de ces fonctions.
+
+% ------------------------------------------------------------------------------------------
+% ------------------------------------------------------------------------------------------
+
+\section{Fonction \scan}
+
+\subsection{Implémentation}
+
+En me basant sur les indications du \sujet\ pour la fonction \scan, je propose cette implémentation:
+\begin{minted}{ocaml}
+let scan (mm: assignment) (cl: array cls) (nv na nc: int) : (b: bool, mc: int)
+=
+  let ref i = 0 in
+  let ref mc = nc in
+
+  while i < mc do
+    let (l1, l2, l3) = cl[i] in
+
+    if (abs l1 < na && mm[abs l1] <> l1) ||
+       (abs l2 < na && mm[abs l2] <> l2) ||
+       (abs l3 < na && mm[abs l3] <> l3)
+    then begin
+      mc <- mc - 1;
+      swap cl i mc
+    end
+    else if (abs l1 < na && mm[abs l1] = l1) &&
+            (abs l2 < na && mm[abs l2] = l2) &&
+            (abs l3 < na && mm[abs l3] = l3)
+    then
+      return (false, mc)
+    else
+      i <- i + 1
+  done;
+
+  (true, mc)
+\end{minted}
+
+\subsection{Pré-condition}
+
+TODO
+
+\subsection{Post-condition}
+
+TODO
+
+\subsection{Variant}
+
+TODO
+
+\subsection{Loop-invariant}
+
+TODO
+
+% ------------------------------------------------------------------------------------------
+% ------------------------------------------------------------------------------------------
+
+\section{Fonction \dpll}
+
+\subsection{Implémentation}
+
+En me basant sur les indications du \sujet\ pour la fonction \dpll, je propose cette implémentation:
+\begin{minted}{ocaml}
+let rec dpll (mm: assignment) (cl: array cls) (nv na nc: int) : (s: bool)
+=
+  let (b, mc) = scan mm cl nv na nc in
+
+  if mc = 0 then true
+  else if (not b) || (na = nv) then false
+  else begin
+    mm[na] <- na;
+
+    if dpll mm cl nv (na + 1) mc then true
+    else begin
+      mm[na] <- -na;
+      dpll mm cl nv (na + 1) mc
+    end
+  end
+\end{minted}
+
+\subsection{Pré-condition}
+
+TODO
+
+\subsection{Post-condition}
+
+TODO
+
+\subsection{Variant}
+
+TODO
+
+\subsection{Loop-invariant}
+
+TODO
+
+% ------------------------------------------------------------------------------------------
+% ------------------------------------------------------------------------------------------
+
+\section{Conclusion}
+
+\subsection{Synthèse}
+
+TODO
+
+\subsection{Problèmes rencontrés}
+
+TODO
+
+\subsection{Remarques}
+
+TODO
+
+% ------------------------------------------------------------------------------------------

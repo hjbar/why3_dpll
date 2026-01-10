@@ -69,7 +69,30 @@ predicate ok_cls (mm: assignment) (na: int) (c: cls) =
    assignment `mm` cannot possibly be extended to a model. *)
 
 let scan (mm: assignment) (cl: array cls) (nv na nc: int) : (b: bool, mc: int)
-= absurd
+=
+  let ref i = 0 in
+  let ref mc = nc in
+
+  while i < mc do
+    let (l1, l2, l3) = cl[i] in
+
+    if (abs l1 < na && mm[abs l1] <> l1) ||
+       (abs l2 < na && mm[abs l2] <> l2) ||
+       (abs l3 < na && mm[abs l3] <> l3)
+    then begin
+      mc <- mc - 1;
+      swap cl i mc
+    end
+    else if (abs l1 < na && mm[abs l1] = l1) &&
+            (abs l2 < na && mm[abs l2] = l2) &&
+            (abs l3 < na && mm[abs l3] = l3)
+    then
+      return (false, mc)
+    else
+      i <- i + 1
+  done;
+
+  (true, mc)
 
 (* Function `dpll` checks the current state of the search using `scan`,
    and after that, if the search can be continued, extends the current
@@ -79,7 +102,20 @@ let scan (mm: assignment) (cl: array cls) (nv na nc: int) : (b: bool, mc: int)
    if `mm` cannot possibly be extended to a model. *)
 
 let rec dpll (mm: assignment) (cl: array cls) (nv na nc: int) : (s: bool)
-= absurd
+=
+  let (b, mc) = scan mm cl nv na nc in
+
+  if mc = 0 then true
+  else if (not b) || (na = nv) then false
+  else begin
+    mm[na] <- na;
+
+    if dpll mm cl nv (na + 1) mc then true
+    else begin
+      mm[na] <- -na;
+      dpll mm cl nv (na + 1) mc
+    end
+  end
 
 (* Function `sat` implements a simple 3SAT solver. If it returns `true`,
    assignment `mm` contains a model of the clause set `cl`. If it returns

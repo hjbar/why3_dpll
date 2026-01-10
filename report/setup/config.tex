@@ -1,0 +1,71 @@
+% Format
+\documentclass[12pt]{article}
+\usepackage[letterpaper,top=2cm,bottom=2cm,left=3cm,right=3cm,marginparwidth=1.75cm]{geometry}
+
+
+% Large line breaks after each paragraph
+\usepackage[skip=1em]{parskip}
+
+
+% Language and font
+\usepackage[T1]{fontenc}
+\usepackage{fontspec}
+\usepackage{polyglossia}
+\setmainlanguage{french}
+\usepackage{libertine}
+
+
+% Maths & symbols
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{wasysym}
+\usepackage{textcomp}
+
+
+% Unicode symbols
+\usepackage{newunicodechar}
+\newunicodechar{∃}{\ensuremath{\exists}}
+\newunicodechar{∧}{\ensuremath{\wedge}}
+\newunicodechar{≤}{\ensuremath{\leq}}
+\newunicodechar{⊤}{\ensuremath{\top}}
+\newunicodechar{⊥}{\ensuremath{\bot}}
+
+
+% Pictures & figures
+\usepackage{graphicx}
+\usepackage[font=footnotesize]{caption}
+
+
+% Web links
+\usepackage[colorlinks=true, linkcolor=green!40!black, citecolor=violet!80!black, urlcolor=cyan!40!black]{hyperref}
+
+
+% Document references
+\usepackage{nameref}
+
+
+% Code
+\usepackage{minted}
+\usemintedstyle[ocaml]{tango} % https://pygments.org/styles/ for more colors
+\usepackage[scaled=0.85]{sourcecodepro}
+
+
+% Bibliography
+\usepackage[nottoc, notlof, notlot]{tocbibind}
+
+
+\usepackage{natbib}
+  % use the natbib citations commands, starred version (all authors):
+  % - \citet*{...} to cite a reference as a word of the sentence
+  % - \citep*{...} to cite a reference as a parenthetical remark
+\renewcommand{\cite}[1]{\citet*{#1}}
+
+
+% Tables
+\usepackage{booktabs}
+
+
+% Graphs
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}

@@ -68,8 +68,16 @@ predicate ok_cls (mm: assignment) (na: int) (c: cls) =
    assigned a false truth value), and therefore the current
    assignment `mm` cannot possibly be extended to a model. *)
 
+predicate false_lit (mm: assignment) (na: int) (l: lit) =
+  is_lit (length mm) l /\ 0 <= abs l < na <= length mm /\
+  mm[abs l] = l
+
+predicate false_cls (mm: assignment) (na: int) (c: cls) =
+  let l1, l2, l3 = c in
+  false_lit mm na l1 /\ false_lit mm na l2 /\ false_lit mm na l3
+
 let scan (mm: assignment) (cl: array cls) (nv na nc: int) : (b: bool, mc: int)
-  requires { (0 < length mm) /\ (length mm = nv) }
+  requires { nv = length mm }
   requires { 0 < na <= nv }
   requires { 0 <= nc <= length cl }
   requires { forall i. 0 <= i < length cl -> is_cls nv cl[i] }
@@ -77,10 +85,11 @@ let scan (mm: assignment) (cl: array cls) (nv na nc: int) : (b: bool, mc: int)
 
   writes { cl }
 
-  ensures { forall i. 0 <= i < length cl -> is_cls nv cl[i] }
   ensures { 0 <= mc <= nc }
-  ensures { forall i. mc <= i < length cl -> ok_cls mm na cl[i] }
-  (* ensures { permut_all (old cl) cl } *)
+  ensures { forall i. 0 <= i < length cl -> is_cls nv cl[i] }
+  ensures { b -> forall i. mc <= i < length cl -> ok_cls mm na cl[i] }
+  ensures { not b -> exists i. 0 <= i < mc /\ false_cls mm na cl[i] }
+  ensures { permut_all (old cl) cl }
 =
   let ref i = 0 in
   let ref mc = nc in
@@ -88,10 +97,10 @@ let scan (mm: assignment) (cl: array cls) (nv na nc: int) : (b: bool, mc: int)
   while i < mc do
     variant { mc - i }
 
-    invariant { 0 <= i <= mc }
+    invariant { 0 <= i <= mc <= nc }
     invariant { forall j. 0 <= j < length cl -> is_cls nv cl[j] }
-    invariant { 0 <= mc <= nc }
     invariant { forall j. mc <= j < length cl -> ok_cls mm na cl[j] }
+    invariant { permut_all (old cl) cl }
 
     let (l1, l2, l3) = cl[i] in
 
@@ -121,7 +130,7 @@ let scan (mm: assignment) (cl: array cls) (nv na nc: int) : (b: bool, mc: int)
    if `mm` cannot possibly be extended to a model. *)
 
 let rec dpll (mm: assignment) (cl: array cls) (nv na nc: int) : (s: bool)
-  requires { (0 < length mm) /\ (length mm = nv) }
+  requires { nv = length mm }
   requires { 0 < na <= nv }
   requires { 0 <= nc <= length cl }
   requires { forall i. 0 <= i < length cl -> is_cls nv cl[i] }
@@ -133,7 +142,9 @@ let rec dpll (mm: assignment) (cl: array cls) (nv na nc: int) : (s: bool)
   writes { mm }
 
   ensures { forall i. 0 <= i < length cl -> is_cls nv cl[i] }
-  ensures { exists mc. 0 <= mc <= nc -> forall i. mc <= i < length cl -> ok_cls mm na cl[i] }
+  ensures { s -> is_assignment mm na }
+  ensures { s -> forall i. 0 <= i < length cl -> ok_cls mm nv cl[i] }
+  ensures { permut_all (old cl) cl }
 =
   let (b, mc) = scan mm cl nv na nc in
 

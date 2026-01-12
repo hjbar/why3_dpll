@@ -80,15 +80,16 @@ let scan (mm: assignment) (cl: array cls) (nv na nc: int) : (b: bool, mc: int)
   requires { nv = length mm }
   requires { 0 < na <= nv }
   requires { 0 <= nc <= length cl }
-  requires { forall i. 0 <= i < length cl -> is_cls nv cl[i] }
   requires { forall i. nc <= i < length cl -> ok_cls mm na cl[i] }
 
   writes { cl }
 
   ensures { 0 <= mc <= nc }
-  ensures { forall i. 0 <= i < length cl -> is_cls nv cl[i] }
+  ensures { forall i. nc <= i < length cl -> cl[i] = old cl[i] }
   ensures { b -> forall i. mc <= i < length cl -> ok_cls mm na cl[i] }
+
   ensures { not b -> exists i. 0 <= i < mc /\ false_cls mm na cl[i] }
+
   ensures { permut_all (old cl) cl }
 =
   let ref i = 0 in
@@ -98,7 +99,7 @@ let scan (mm: assignment) (cl: array cls) (nv na nc: int) : (b: bool, mc: int)
     variant { mc - i }
 
     invariant { 0 <= i <= mc <= nc }
-    invariant { forall j. 0 <= j < length cl -> is_cls nv cl[j] }
+    invariant { forall j. nc <= j < length cl -> cl[j] = old cl[j] }
     invariant { forall j. mc <= j < length cl -> ok_cls mm na cl[j] }
     invariant { permut_all (old cl) cl }
 
@@ -133,7 +134,6 @@ let rec dpll (mm: assignment) (cl: array cls) (nv na nc: int) : (s: bool)
   requires { nv = length mm }
   requires { 0 < na <= nv }
   requires { 0 <= nc <= length cl }
-  requires { forall i. 0 <= i < length cl -> is_cls nv cl[i] }
   requires { forall i. nc <= i < length cl -> ok_cls mm na cl[i] }
 
   variant { nv - na }
@@ -141,9 +141,10 @@ let rec dpll (mm: assignment) (cl: array cls) (nv na nc: int) : (s: bool)
   writes { cl }
   writes { mm }
 
-  ensures { forall i. 0 <= i < length cl -> is_cls nv cl[i] }
-  ensures { s -> is_assignment mm na }
+  ensures { forall i. nc <= i < length cl -> cl[i] = old cl[i] }
+  ensures { forall i. 0 <= i < na -> mm[i] = old mm[i] }
   ensures { s -> forall i. 0 <= i < length cl -> ok_cls mm nv cl[i] }
+
   ensures { permut_all (old cl) cl }
 =
   let (b, mc) = scan mm cl nv na nc in

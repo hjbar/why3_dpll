@@ -131,10 +131,10 @@ let rec dpll (mm: assignment) (cl: array cls) (nv na nc: int) : (s: bool)
 
   requires { forall i. nc <= i < length cl -> ok_cls mm na cl[i] }
 
-  variant { nv - na }
-
   writes { cl }
   writes { mm }
+
+  variant { nv - na }
 
   ensures  { s -> is_assignment mm (length mm) }
 

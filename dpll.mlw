@@ -149,7 +149,15 @@ let rec dpll (mm: assignment) (cl: array cls) (nv na nc: int) : (s: bool)
 =
   let (b, mc) = scan mm cl nv na nc in
 
-  if mc = 0 then true
+  if mc = 0 then begin
+    for i = na to nv - 1 do
+      invariant { forall j. 0 <= j < na -> mm[j] = old mm[j] }
+
+      mm[i] <- i
+    done;
+
+    true
+  end
   else if (not b) || (na = nv) then false
   else begin
     mm[na] <- na;

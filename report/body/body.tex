@@ -4,25 +4,55 @@
 
 L'objectif de ce projet est d'implémenter un algorithme DPLL pour 3-SAT vérifié avec \whythree\ comme décrit dans le \sujet. L'archive contenant le code source est disponible sur \github.
 
-Pour ce faire, nous avons dû compléter le squelette de code fourni, c'est-à-dire compléter la définition des fonctions \scan\ et \dpll\ du fichier \texttt{dpll.mlw}. Ainsi, dans les sections suivantes, on présentera l'implémentation et la vérification de ces fonctions.
+Pour ce faire, nous avons dû compléter le squelette de code fourni, c'est-à-dire compléter la définition des fonctions \scan\, \dpll\ et \sat\ du fichier \texttt{dpll.mlw}. Ainsi, dans les sections suivantes, on présentera l'implémentation et la vérification de ces fonctions.
 
 % ------------------------------------------------------------------------------------------
 % ------------------------------------------------------------------------------------------
 
-\section{Fonction \scan}
+\section{Implémentation}
 
-\subsection{Implémentation}
+Pour la fonction \sat, je propose une implémentation légèrement différente de celle présentée dans le \sujet:
+\begin{minted}{ocaml}
+let sat (mm: assignment) (cl: array cls) : (sat: bool)
+=
+  mm[0] <- 0;
+  dpll mm cl (length mm) 1 (length cl)
+\end{minted}
 
-En me basant sur les indications du \sujet\ pour la fonction \scan, je propose cette implémentation:
+À présent, en plus d'initialiser aux bonnes valeurs les paramètres de la fonction \dpll, j'initialise la première case du tableau \texttt{mm} pour qu'il ait la bonne valeur afin d'être un \assignment\ correct. Ainsi, je n'ai pas à gérer cette valeur ''\textit{dégénérée}'' dans la fonction \dpll, où j'aurais dû écrire une fonction annexe ou mettre à 0 la valeur de la case 0 de \texttt{mm} à chaque appel de fonction.
+
+Pour les fonctions \dpll\ et \scan, je me suis basé sur les indications du \sujet. Ainsi, je propose cette implémentation pour la fonction \dpll:
+\begin{minted}{ocaml}
+let rec dpll (mm: assignment) (cl: array cls) (nv na nc: int) : (s: bool)
+=
+  let (b, mc) = scan mm cl nv na nc in
+  if mc = 0 then begin
+    for i = na to nv - 1 do
+      mm[i] <- i
+    done;
+    true
+  end
+  else if (not b) || (na = nv) then false
+  else begin
+    mm[na] <- na;
+    if dpll mm cl nv (na + 1) mc then true
+    else begin
+      mm[na] <- -na;
+      dpll mm cl nv (na + 1) mc
+    end
+  end
+\end{minted}
+
+Ainsi, si toutes les clauses sont satisfaites, on s'assure que toutes les variables soient assignées, puis on renvoie \texttt{true}. Sinon, si l'\assignment\ actuel ne satisfait pas toutes les clauses, alors on renvoie \texttt{false}. De plus, si toutes les variables sont assignées mais que toutes les clauses ne sont toujours pas satisfaites, alors on renvoie également \texttt{false}, car l'\assignment\ actuel ne convient pas. Sinon, on assigne une nouvelle variable à \texttt{false}, puis à \texttt{true} si cela ne convenait pas.
+
+Pour la fonction \scan, je propose cette implémentation:
 \begin{minted}{ocaml}
 let scan (mm: assignment) (cl: array cls) (nv na nc: int) : (b: bool, mc: int)
 =
   let ref i = 0 in
   let ref mc = nc in
-
   while i < mc do
     let (l1, l2, l3) = cl[i] in
-
     if (abs l1 < na && mm[abs l1] <> l1) ||
        (abs l2 < na && mm[abs l2] <> l2) ||
        (abs l3 < na && mm[abs l3] <> l3)
@@ -38,67 +68,253 @@ let scan (mm: assignment) (cl: array cls) (nv na nc: int) : (b: bool, mc: int)
     else
       i <- i + 1
   done;
-
   (true, mc)
 \end{minted}
 
-\subsection{Pré-condition}
+Pour toutes les clauses encore non satisfaites, on regarde si elles sont satisfaites ou si elles sont fausses avec l'\assignment\ actuel. Si la clause courante est satisfaite, alors on la retire de la zone active. Si la clause courante est fausse, alors on renvoie \texttt{false}. Si aucune clause n'est fausse avec l'\assignment\ actuel, alors on renvoie \texttt{true}.
 
-TODO
+% ------------------------------------------------------------------------------------------
+% ------------------------------------------------------------------------------------------
 
-\subsection{Post-condition}
+\section{Fonction \sat}
 
-TODO
+Pour la fonction \sat, j'ai repris exactement le même contrat que celui proposé dans le \sujet:
+\begin{minted}{ocaml}
+let sat (mm: assignment) (cl: array cls) : (sat: bool)
+  requires { 0 < length mm }
+  requires { forall i. 0 <= i < length cl -> is_cls (length mm) cl[i] }
+  ensures  { sat -> is_assignment mm (length mm) }
+  ensures  { sat -> forall i. 0 <= i < length cl -> ok_cls mm (length mm) cl[i] }
+  ensures  { not sat -> forall mc. is_assignment mc (length mm) ->
+    exists i. 0 <= i < length cl /\ not ok_cls mc (length mm) cl[i] }
+  ensures  { permut_all (old cl) cl }
+\end{minted}
 
-\subsection{Variant}
+On doit donc seulement supposer que le tableau \assignment\ soit d'une longueur au moins égale à 1 et que tous les éléments du tableau des clauses soient bel et bien des clauses.
 
-TODO
-
-\subsection{Loop-invariant}
-
-TODO
+Avec ces hypothèses, on doit prouver que, si l'ensemble de clauses est satisfiable, alors toutes les variables doivent être assignées. De plus, si l'ensemble des clauses est satisfiable, alors toutes les clauses doivent être satisfaites avec cet \assignment. En revanche, si l'ensemble de clauses n'est pas satisfiable, alors aucun \assignment\ n'est possible pour satisfaire toutes les clauses en même temps. Enfin, on peut effectuer des opérations sur l'ensemble de clauses, mais celui-ci doit rester une permutation de l'ensemble de clauses initial.
 
 % ------------------------------------------------------------------------------------------
 % ------------------------------------------------------------------------------------------
 
 \section{Fonction \dpll}
 
-\subsection{Implémentation}
-
-En me basant sur les indications du \sujet\ pour la fonction \dpll, je propose cette implémentation:
+Pour la fonction \dpll, je propose le contrat suivant:
 \begin{minted}{ocaml}
 let rec dpll (mm: assignment) (cl: array cls) (nv na nc: int) : (s: bool)
-=
-  let (b, mc) = scan mm cl nv na nc in
+  requires { nv = length mm }
+  requires { 0 < na <= nv }
+  requires { 0 <= nc <= length cl }
 
-  if mc = 0 then true
-  else if (not b) || (na = nv) then false
-  else begin
-    mm[na] <- na;
+  requires { mm[0] = 0 }
+  requires { is_assignment mm na }
 
-    if dpll mm cl nv (na + 1) mc then true
-    else begin
-      mm[na] <- -na;
-      dpll mm cl nv (na + 1) mc
-    end
-  end
+  requires { forall i. nc <= i < length cl -> ok_cls mm na cl[i] }
+
+  writes { cl }
+  writes { mm }
+
+  variant { nv - na }
+
+  ensures  { s -> is_assignment mm (length mm) }
+
+  ensures { forall i. nc <= i < length cl -> cl[i] = old cl[i] }
+  ensures { forall i. 0 <= i < na -> mm[i] = old mm[i] }
+  ensures { s -> forall i. 0 <= i < length cl -> ok_cls mm nv cl[i] }
+
+  ensures { permut_all (old cl) cl }
+\end{minted}
+
+accompagné des invariants de boucle suivants:
+\begin{minted}{ocaml}
+for i = na to nv - 1 do
+  invariant { forall j. 0 <= j < na -> mm[j] = old mm[j] }
+  invariant { is_assignment mm i }
+  ...
+done
 \end{minted}
 
 \subsection{Pré-condition}
 
-TODO
+J'ai déclaré les pré-conditions suivantes:
+\begin{minted}{ocaml}
+requires { nv = length mm }
+requires { 0 < na <= nv }
+requires { 0 <= nc <= length cl }
 
-\subsection{Post-condition}
+requires { mm[0] = 0 }
+requires { is_assignment mm na }
 
-TODO
+requires { forall i. nc <= i < length cl -> ok_cls mm na cl[i] }
+\end{minted}
+
+Premièrement, \code{nv = length mm} signifie que \texttt{nv} est égal au nombre de variables plus 1. Deuxièmement, \code{0 < na <= nv} signifie que la première variable non assignée est comprise entre la première et la dernière variable. Troisièmement, \code{0 <= nc <= length cl} signifie que le nombre de clauses encore non satisfaites est compris entre 0 et le nombre total de clauses. Si les arguments concernés ne respectent pas ces conditions, alors ils ne sont pas valides, car ils seraient inconsistants avec la logique de l'algorithme. De plus, ces pré-condtions previennent des accès hors bornes des différents tableaux.
+
+Ensuite, \code{mm[0] = 0} assure que la première case du tableau \assignment\ est correctement initialisée. Cette condition nous permettra d'exprimer plus simplement les post-conditions et les invariants. De plus, \code{is_assignment mm na} assure que toutes les variables jusqu'à \texttt{na} exclu sont bien assignées. Par exemple, cette dernière condition est vraie avec $na = 1$ si \texttt{mm[0] = 0}. Ces deux conditions sont essentielles pour garantir qu'à la fin de l'algorithme, si l'ensemble de clauses est satisfiable, alors toutes les variables sont assignées.
+
+Enfin, \code{forall i. nc <= i < length cl -> ok_cls mm na cl[i]} exprime le fait que toutes les clauses dans la zone \textit{inactive} sont satisfaites. Cette condition est vraie lorsque $nc = length \, cl$, car aucune clause n'est alors dans la zone \textit{inactive}. Cette condition est essentielle pour prouver que, si l'ensemble de clauses est satisfiable, alors à la fin de l'algorithme toutes les clauses seront satisfaites.
+
+\subsection{Écriture}
+
+J'ai déclaré les écritures suivantes:
+\begin{minted}{ocaml}
+writes { cl }
+writes { mm }
+\end{minted}
+
+En effet, dans la fonction \scan, on écrit dans le tableau \texttt{cl}, et dans la fonction \dpll, on écrit dans le tableau \texttt{mm}. Il est donc nécessaire de déclarer ces écritures.
 
 \subsection{Variant}
 
-TODO
+J'ai déclaré le variant suivant:
+\begin{minted}{ocaml}
+variant { nv - na }
+\end{minted}
 
-\subsection{Loop-invariant}
+En effet, \texttt{na} est initialisé entre 1 et \texttt{nv}. De plus, \texttt{na} est strictement croissant et tend vers \texttt{nv}. Ainsi, comme \texttt{nv} est fixé, l'expression \code{nv - na} tend bien vers 0.
 
-TODO
+\subsection{Post-condition}
+
+J'ai déclaré les post-conditions suivantes:
+\begin{minted}{ocaml}
+ensures  { s -> is_assignment mm (length mm) }
+
+ensures { forall i. nc <= i < length cl -> cl[i] = old cl[i] }
+ensures { forall i. 0 <= i < na -> mm[i] = old mm[i] }
+ensures { s -> forall i. 0 <= i < length cl -> ok_cls mm nv cl[i] }
+
+ensures { permut_all (old cl) cl }
+\end{minted}
+
+Tout d'abord, \code{s -> is_assignment mm (length mm)} signifie que, si l'ensemble de clauses est satisfiable, alors toutes les variables sont assignées. Grâce à la pré-condition, cette post-condition est vérifiée jusqu'à \texttt{na}. On aura donc besoin de l'invariant de boucle dans le cas où $na < nv$, c'est-à-dire lorsque l'on doit compléter les \assignment\ restantes.
+
+Ensuite, premièrement, \code{forall i. nc <= i < length cl -> cl[i] = old cl[i]} signifie que l'on ne modifie plus l'ordre des clauses déjà satisfaites. Comme on écrit dans \texttt{cl} dans la fonction \scan, cette propriété devra également être vérifiée dans la fonction \scan. Deuxièmement, \code{forall i. 0 <= i < na -> mm[i] = old mm[i]} signifie que l'on ne modifie pas l'\assignment\ déjà effectué avant l'entrée dans la fonction, c'est-à-dire que l'on n'assigne que les variables encore non assignées. Là encore, un invariant de boucle est nécessaire dans le cas où $na < nv$. Troisièmement, \texttt{s -> forall i. 0 <= i < length cl -> ok\_cls mm nv cl[i]} signifie que, si l'ensemble de clauses est satisfiable, alors à la fin de l'algorithme toutes les clauses sont satisfaites. Pour prouver cette propriété, il faudra l'exprimer dans la fonction \scan, car c'est elle qui vérifie la satisfiabilité des clauses. Les deux premières propriétés sont nécessaires uniquement pour prouver la troisième. En effet, si l'on ne modifie pas les clauses déjà satisfaites, que l'on ne change pas l'\assignment\ déjà effectué, et que l'on progresse monotonement vers la satisfiabilité (cf. contrat de \scan), alors on finira par satisfaire toutes les clauses si un \assignment\ le permet.
+
+Enfin, \code{permut_all (old cl) cl} exprime le fait que l'on effectue uniquement des \textit{swaps} dans le tableau \texttt{cl}, et que l'on obtient donc une permutation de l'ensemble de clauses initial. Comme la fonction \dpll\ ne modifie pas directement le tableau \texttt{cl}, cette propriété devra être prouvée dans la fonction \scan.
+
+\subsection{Invariant de boucle}
+
+J'ai déclaré les invariants de boucle suivants:
+\begin{minted}{ocaml}
+for i = na to nv - 1 do
+  invariant { forall j. 0 <= j < na -> mm[j] = old mm[j] }
+  invariant { is_assignment mm i }
+  ...
+done
+\end{minted}
+
+Tout d'abord, \code{forall j. 0 <= j < na -> mm[j] = old mm[j]} signifie que l'on ne modifie pas l'\assignment\ déjà effectué avant l'entrée dans la fonction, c'est-à-dire que l'on n'assigne que les variables encore non assignées. Cette condition est vérifiée ici, car la boucle démarre à $i = na$ et progresse jusqu'à \texttt{nv}, ce qui implique que seules les variables non encore assignées sont modifiées. Cet invariant sert à prouver la stabilité de la post-condition \code{forall i. 0 <= i < na -> mm[i] = old mm[i]} au sein de la boucle.
+
+Ensuite, \code{is_assignment mm i} assure que toutes les variables jusqu'à \texttt{i} exclu sont bien assignées. Cet invariant sert à prouver la post-condition \texttt{s -> is\_assignment mm (length mm)}, qui garantit que toutes les variables sont assignées si l'ensemble de clauses est satisfiable. Comme \texttt{i} tend vers $nv = length \, mm$, on obtient bien \texttt{is\_assignment mm (length mm)} lorsque l'ensemble de clauses est satisfiable.
+
+% ------------------------------------------------------------------------------------------
+% ------------------------------------------------------------------------------------------
+
+\section{Fonction \scan}
+
+Pour la fonction \scan, je propose le contrat suivant:
+\begin{minted}{ocaml}
+let scan (mm: assignment) (cl: array cls) (nv na nc: int) : (b: bool, mc: int)
+  requires { nv = length mm }
+  requires { 0 < na <= nv }
+  requires { 0 <= nc <= length cl }
+  requires { forall i. nc <= i < length cl -> ok_cls mm na cl[i] }
+
+  writes { cl }
+
+  ensures { 0 <= mc <= nc }
+  ensures { forall i. nc <= i < length cl -> cl[i] = old cl[i] }
+  ensures { forall i. mc <= i < length cl -> ok_cls mm na cl[i] }
+
+  ensures { permut_all (old cl) cl }
+\end{minted}
+accompagné des invariants de boucle suivants:
+\begin{minted}{ocaml}
+while i < mc do
+  variant { mc - i }
+
+  invariant { 0 <= i <= mc <= nc }
+  invariant { forall j. nc <= j < length cl -> cl[j] = old cl[j] }
+  invariant { forall j. mc <= j < length cl -> ok_cls mm na cl[j] }
+
+  invariant { permut_all (old cl) cl }
+  ...
+done
+\end{minted}
+
+\subsection{Pré-condition}
+
+J'ai déclaré les pré-conditions suivantes:
+\begin{minted}{ocaml}
+requires { nv = length mm }
+requires { 0 < na <= nv }
+requires { 0 <= nc <= length cl }
+requires { forall i. nc <= i < length cl -> ok_cls mm na cl[i] }
+\end{minted}
+
+Ces pré-conditions sont déjà présentes dans la fonction \dpll ; leur explication et leur signification sont donc identiques. À noter que \texttt{forall i. nc <= i < length cl -> ok\_cls mm na cl[i]} sera utile pour prouver que toutes les clauses de la nouvelle zone \textit{inactive} sont déjà satisfaites.
+
+\subsection{Écriture}
+
+J'ai déclaré l'écriture suivante:
+\begin{minted}{ocaml}
+writes { cl }
+\end{minted}
+
+En effet, dans la fonction \scan, on écrit dans le tableau \texttt{cl}. Il est donc nécessaire de déclarer cette écriture.
+
+\subsection{Variant}
+
+J'ai déclaré le variant suivant:
+\begin{minted}{ocaml}
+while i < mc do
+  variant { mc - i }
+  ...
+done;
+\end{minted}
+
+En effet, \texttt{i} est initialisé à 0 et \texttt{mc} est initialisé à \texttt{nc}, donc à \texttt{length cl}. De plus, à chaque itération de la boucle qui n'est pas un \texttt{return}, soit \texttt{i} est incrémenté, soit \texttt{mc} est décrémenté. Ainsi, \code{mc - i} tend bien vers 0, car cette quantité est strictement décroissante et converge vers 0.
+
+\subsection{Post-condition}
+
+J'ai déclaré les post-conditions suivantes:
+\begin{minted}{ocaml}
+ensures { 0 <= mc <= nc }
+ensures { forall i. nc <= i < length cl -> cl[i] = old cl[i] }
+ensures { forall i. mc <= i < length cl -> ok_cls mm na cl[i] }
+
+ensures { permut_all (old cl) cl }
+\end{minted}
+
+Tout d'abord, \code{0 <= mc <= nc} signifie que la nouvelle zone \textit{active} est de taille inférieure ou égale à l'ancienne, et inversement que la nouvelle zone \textit{inactive} est de taille supérieure ou égale à l'ancienne. Cette propriété est vérifiée car on ne modifie jamais les clauses déjà satisfaites et l'on ne peut que diminuer \texttt{nc} dans l'algorithme. On devra prouver la stabilité de cette propriété dans la boucle à l'aide d'un invariant. C'est cette propriété qui exprime le fait que l'on progresse uniquement vers la satisfiabilité.
+
+Deuxièmement, \code{forall i. nc <= i < length cl -> cl[i] = old cl[i]} est déjà présente dans la fonction \dpll ; son explication est donc la même. Elle sera prouvée dans la boucle grâce à un invariant.
+
+Troisièmement, \texttt{forall i. mc <= i < length cl -> ok\_cls mm na cl[i]} signifie que toutes les clauses dans la nouvelle zone \textit{inactive} sont satisfaites. Cette condition sera prouvée grâce à un invariant dans la boucle. Ces trois propriétés sont nécessaires pour prouver, dans la fonction \dpll, que si l'ensemble de clauses est satisfiable, alors toutes les clauses le sont également.
+
+Enfin, \code{permut_all (old cl) cl} est déjà présente dans la fonction \dpll ; son explication est donc identique. Cette propriété est prouvée dans la boucle grâce à un invariant, car c'est à cet endroit que l'on effectue les \textit{swaps}.
+
+\subsection{Invariant de boucle}
+
+J'ai déclaré les invariants de boucle suivants:
+\begin{minted}{ocaml}
+while i < mc do
+  invariant { 0 <= i <= mc <= nc }
+  invariant { forall j. nc <= j < length cl -> cl[j] = old cl[j] }
+  invariant { forall j. mc <= j < length cl -> ok_cls mm na cl[j] }
+
+  invariant { permut_all (old cl) cl }
+  ...
+done
+\end{minted}
+
+Tout d'abord, \code{0 <= i <= mc <= nc} signifie que la nouvelle zone \textit{active} est plus petite ou égale à l'ancienne, et que les clauses traitées par la boucle appartiennent uniquement à la zone \textit{active}. Cet invariant permet de prouver la post-condition \code{0 <= mc <= nc}.
+
+Ensuite, \code{forall j. nc <= j < length cl -> cl[j] = old cl[j]} permet de prouver la stabilité de cette propriété à travers la boucle, car on ne modifie pas les clauses situées dans la zone \textit{inactive}.
+
+De plus, \code{forall j. mc <= j < length cl -> ok_cls mm na cl[j]} permet de prouver que toutes les clauses de la nouvelle zone \textit{inactive} sont satisfaites par l'\assignment. Cette propriété est préservée par la boucle, car on ne place dans cette zone que des clauses nouvellement satisfaites par l'\assignment, en plus de celles déjà satisfaites auparavant (ce qui est assuré par la pré-condition).
+
+Enfin, \code{permut_all (old cl) cl} assure que les \textit{swaps} produisent uniquement une permutation des clauses à travers les différentes itérations de la boucle.
 
 % ------------------------------------------------------------------------------------------
 % ------------------------------------------------------------------------------------------

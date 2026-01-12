@@ -68,14 +68,6 @@ predicate ok_cls (mm: assignment) (na: int) (c: cls) =
    assigned a false truth value), and therefore the current
    assignment `mm` cannot possibly be extended to a model. *)
 
-predicate false_lit (mm: assignment) (na: int) (l: lit) =
-  is_lit (length mm) l /\ 0 <= abs l < na <= length mm /\
-  mm[abs l] = l
-
-predicate false_cls (mm: assignment) (na: int) (c: cls) =
-  let l1, l2, l3 = c in
-  false_lit mm na l1 /\ false_lit mm na l2 /\ false_lit mm na l3
-
 let scan (mm: assignment) (cl: array cls) (nv na nc: int) : (b: bool, mc: int)
   requires { nv = length mm }
   requires { 0 < na <= nv }
@@ -86,9 +78,7 @@ let scan (mm: assignment) (cl: array cls) (nv na nc: int) : (b: bool, mc: int)
 
   ensures { 0 <= mc <= nc }
   ensures { forall i. nc <= i < length cl -> cl[i] = old cl[i] }
-  ensures { b -> forall i. mc <= i < length cl -> ok_cls mm na cl[i] }
-
-  ensures { not b -> exists i. 0 <= i < mc /\ false_cls mm na cl[i] }
+  ensures { forall i. mc <= i < length cl -> ok_cls mm na cl[i] }
 
   ensures { permut_all (old cl) cl }
 =
@@ -101,6 +91,7 @@ let scan (mm: assignment) (cl: array cls) (nv na nc: int) : (b: bool, mc: int)
     invariant { 0 <= i <= mc <= nc }
     invariant { forall j. nc <= j < length cl -> cl[j] = old cl[j] }
     invariant { forall j. mc <= j < length cl -> ok_cls mm na cl[j] }
+
     invariant { permut_all (old cl) cl }
 
     let (l1, l2, l3) = cl[i] in
@@ -134,12 +125,18 @@ let rec dpll (mm: assignment) (cl: array cls) (nv na nc: int) : (s: bool)
   requires { nv = length mm }
   requires { 0 < na <= nv }
   requires { 0 <= nc <= length cl }
+
+  requires { mm[0] = 0 }
+  requires { is_assignment mm na }
+
   requires { forall i. nc <= i < length cl -> ok_cls mm na cl[i] }
 
   variant { nv - na }
 
   writes { cl }
   writes { mm }
+
+  ensures  { s -> is_assignment mm (length mm) }
 
   ensures { forall i. nc <= i < length cl -> cl[i] = old cl[i] }
   ensures { forall i. 0 <= i < na -> mm[i] = old mm[i] }
@@ -152,6 +149,7 @@ let rec dpll (mm: assignment) (cl: array cls) (nv na nc: int) : (s: bool)
   if mc = 0 then begin
     for i = na to nv - 1 do
       invariant { forall j. 0 <= j < na -> mm[j] = old mm[j] }
+      invariant { is_assignment mm i }
 
       mm[i] <- i
     done;
@@ -182,4 +180,6 @@ let sat (mm: assignment) (cl: array cls) : (sat: bool)
   ensures  { not sat -> forall mc. is_assignment mc (length mm) ->
     exists i. 0 <= i < length cl /\ not ok_cls mc (length mm) cl[i] }
   ensures  { permut_all (old cl) cl }
-= dpll mm cl (length mm) 1 (length cl)
+=
+  mm[0] <- 0;
+  dpll mm cl (length mm) 1 (length cl)

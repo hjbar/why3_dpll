@@ -59,6 +59,24 @@ predicate ok_cls (mm: assignment) (na: int) (c: cls) =
   let l1, l2, l3 = c in
   ok_lit mm na l1 \/ ok_lit mm na l2 \/ ok_lit mm na l3
 
+(* For every `i` such that `0` <= `i` < `len`, a1 and a2 have
+   the same element at index `i`. This is a useful predicate for
+   proving the completeness of the SAT algorithm. *)
+predicate array_eq (a1: array 'a) (a2: array 'a) (len: int) =
+  forall i. 0 <= i < len -> a1[i] = a2[i]
+
+(* Helper lemma to assist Why3 in proving the post-condition
+   for the completeness of the SAT algorithm within the
+   `dpll` function.
+   If `cl1` contains a clause that is not satisfied, and if
+   `cl2` is a permutation of `cl1`, then `cl2` also contains
+   a clause that is not satisfied. *)
+lemma permut_preserve_existence_of_notOkCls :
+  forall cl1 cl2: array cls, mm: assignment, n: int.
+    permut_all cl1 cl2 ->
+    (exists i. 0 <= i < length cl1 /\ not ok_cls mm n cl1[i]) ->
+    (exists i. 0 <= i < length cl2 /\ not ok_cls mm n cl2[i])
+
 (* Function `scan` moves the clases which are true in
    assignment `mm` outside of the active zone `cl[0..nc)`,
    and returns the new number of active clases `mc` which
@@ -80,6 +98,10 @@ let scan (mm: assignment) (cl: array cls) (nv na nc: int) : (b: bool, mc: int)
   ensures { forall i. nc <= i < length cl -> cl[i] = old cl[i] }
   ensures { forall i. mc <= i < length cl -> ok_cls mm na cl[i] }
 
+  ensures { b -> forall i. 0 <= i < mc -> not ok_cls mm na cl[i] }
+  ensures { not b -> forall mm'. is_assignment mm' nv ->
+    array_eq mm mm' na -> exists i. 0 <= i < nc /\ not ok_cls mm' nv cl[i] }
+
   ensures { permut_all (old cl) cl }
 =
   let ref i = 0 in
@@ -91,6 +113,8 @@ let scan (mm: assignment) (cl: array cls) (nv na nc: int) : (b: bool, mc: int)
     invariant { 0 <= i <= mc <= nc }
     invariant { forall j. nc <= j < length cl -> cl[j] = old cl[j] }
     invariant { forall j. mc <= j < length cl -> ok_cls mm na cl[j] }
+
+    invariant { forall j. 0 <= j < i -> not ok_cls mm na cl[j] }
 
     invariant { permut_all (old cl) cl }
 
@@ -136,11 +160,14 @@ let rec dpll (mm: assignment) (cl: array cls) (nv na nc: int) : (s: bool)
 
   variant { nv - na }
 
-  ensures  { s -> is_assignment mm (length mm) }
+  ensures  { s -> is_assignment mm nv }
 
   ensures { forall i. nc <= i < length cl -> cl[i] = old cl[i] }
   ensures { forall i. 0 <= i < na -> mm[i] = old mm[i] }
   ensures { s -> forall i. 0 <= i < length cl -> ok_cls mm nv cl[i] }
+
+  ensures { not s -> forall mc. is_assignment mc nv ->
+    array_eq (old mm) mc na -> exists i. 0 <= i < length cl /\ not ok_cls mc nv cl[i] }
 
   ensures { permut_all (old cl) cl }
 =

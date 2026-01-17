@@ -1,10 +1,11 @@
 % ------------------------------------------------------------------------------------------
+% ------------------------------------------------------------------------------------------
 
 \section{Introduction}
 
 L'objectif de ce projet est d'implémenter un algorithme DPLL pour 3-SAT vérifié avec \whythree\ comme décrit dans le \sujet. L'archive contenant le code source est disponible sur \github.
 
-Pour ce faire, nous avons dû compléter le squelette de code fourni, c'est-à-dire compléter la définition des fonctions \scan\, \dpll\ et \sat\ du fichier \texttt{dpll.mlw}. Ainsi, dans les sections suivantes, on présentera l'implémentation et la vérification de ces fonctions.
+Pour ce faire, j'ai dû compléter le squelette de code fourni, c'est-à-dire compléter la définition des fonctions \scan, \dpll\ et \sat\ du fichier \texttt{dpll.mlw}. De plus, j'ai essayé d'avoir une implémentation aussi élégante et efficace que possible (i.e. écrire le code comme si je l'avais écrit en OCaml, sans opter pour une version moins élégante ou moins efficace dans le but de simplifier les preuves). Ainsi, dans les sections suivantes, on présentera l'implémentation et la vérification de ces fonctions.
 
 % ------------------------------------------------------------------------------------------
 % ------------------------------------------------------------------------------------------
@@ -43,7 +44,7 @@ let rec dpll (mm: assignment) (cl: array cls) (nv na nc: int) : (s: bool)
   end
 \end{minted}
 
-Ainsi, si toutes les clauses sont satisfaites, on s'assure que toutes les variables soient assignées, puis on renvoie \texttt{true}. Sinon, si l'\assignment\ actuel ne satisfait pas toutes les clauses, alors on renvoie \texttt{false}. De plus, si toutes les variables sont assignées mais que toutes les clauses ne sont toujours pas satisfaites, alors on renvoie également \texttt{false}, car l'\assignment\ actuel ne convient pas. Sinon, on assigne une nouvelle variable à \texttt{false}, puis à \texttt{true} si cela ne convenait pas.
+Ainsi, si toutes les clauses sont satisfaites, on s'assure que toutes les variables soient assignées, puis on renvoie \texttt{true}. Sinon, si l'\assignment\ actuel rend fausse une clause, alors on renvoie \texttt{false}. De plus, si toutes les variables sont assignées mais que toutes les clauses ne sont toujours pas satisfaites, alors on renvoie également \texttt{false}, car l'\assignment\ actuel ne convient pas. Sinon, on assigne une nouvelle variable à \texttt{false}, puis à \texttt{true} si cela ne convenait pas.
 
 Pour la fonction \scan, je propose cette implémentation:
 \begin{minted}{ocaml}
@@ -72,6 +73,32 @@ let scan (mm: assignment) (cl: array cls) (nv na nc: int) : (b: bool, mc: int)
 \end{minted}
 
 Pour toutes les clauses encore non satisfaites, on regarde si elles sont satisfaites ou si elles sont fausses avec l'\assignment\ actuel. Si la clause courante est satisfaite, alors on la retire de la zone active. Si la clause courante est fausse, alors on renvoie \texttt{false}. Si aucune clause n'est fausse avec l'\assignment\ actuel, alors on renvoie \texttt{true}.
+
+% ------------------------------------------------------------------------------------------
+% ------------------------------------------------------------------------------------------
+
+\section{Prédicats et lemmes}
+
+J'ai repris tous les prédicats définis dans le code fourni dans le \sujet, en plus du suivant:
+
+\begin{minted}{ocaml}
+predicate array_eq (a1: array 'a) (a2: array 'a) (len: int) =
+  forall i. 0 <= i < len -> a1[i] = a2[i]
+\end{minted}
+
+Ce prédicat exprime que les \texttt{len} premières valeurs de deux tableaux sont égales.
+
+J'ai également ajouté un lemme pour faciliter une preuve par Why3:
+
+\begin{minted}{ocaml}
+lemma permut_preserve_existence_of_notOkCls :
+  forall cl1 cl2: array cls, mm: assignment, n: int.
+    permut_all cl1 cl2 ->
+    (exists i. 0 <= i < length cl1 /\ not ok_cls mm n cl1[i]) ->
+    (exists i. 0 <= i < length cl2 /\ not ok_cls mm n cl2[i])
+\end{minted}
+
+Ce lemme exprime le fait que si un ensemble de clauses \texttt{cl1} contient une clause non satisfaite et qu'un autre ensemble de clauses \texttt{cl2} est une permutation de \texttt{cl1}, alors \texttt{cl2} contient aussi une clause non satisfaite. Ce lemme est prouvé automatiquement par Why3.
 
 % ------------------------------------------------------------------------------------------
 % ------------------------------------------------------------------------------------------
@@ -116,11 +143,15 @@ let rec dpll (mm: assignment) (cl: array cls) (nv na nc: int) : (s: bool)
 
   variant { nv - na }
 
-  ensures  { s -> is_assignment mm (length mm) }
+  ensures  { s -> is_assignment mm nv }
 
   ensures { forall i. nc <= i < length cl -> cl[i] = old cl[i] }
   ensures { forall i. 0 <= i < na -> mm[i] = old mm[i] }
   ensures { s -> forall i. 0 <= i < length cl -> ok_cls mm nv cl[i] }
+
+  ensures { not s -> forall mc. is_assignment mc nv ->
+    array_eq (old mm) mc na ->
+      exists i. 0 <= i < length cl /\ not ok_cls mc nv cl[i] }
 
   ensures { permut_all (old cl) cl }
 \end{minted}
@@ -177,18 +208,28 @@ En effet, \texttt{na} est initialisé entre 1 et \texttt{nv}. De plus, \texttt{n
 
 J'ai déclaré les post-conditions suivantes:
 \begin{minted}{ocaml}
-ensures  { s -> is_assignment mm (length mm) }
+ensures  { s -> is_assignment mm nv }
 
 ensures { forall i. nc <= i < length cl -> cl[i] = old cl[i] }
 ensures { forall i. 0 <= i < na -> mm[i] = old mm[i] }
 ensures { s -> forall i. 0 <= i < length cl -> ok_cls mm nv cl[i] }
 
+ensures { not s -> forall mc. is_assignment mc nv ->
+  array_eq (old mm) mc na ->
+    exists i. 0 <= i < length cl /\ not ok_cls mc nv cl[i] }
+
 ensures { permut_all (old cl) cl }
 \end{minted}
 
-Tout d'abord, \code{s -> is_assignment mm (length mm)} signifie que, si l'ensemble de clauses est satisfiable, alors toutes les variables sont assignées. Grâce à la pré-condition, cette post-condition est vérifiée jusqu'à \texttt{na}. On aura donc besoin de l'invariant de boucle dans le cas où $na < nv$, c'est-à-dire lorsque l'on doit compléter les \assignment\ restantes.
+Tout d'abord, \code{s -> is_assignment mm nv} signifie que, si l'ensemble de clauses est satisfiable, alors toutes les variables sont assignées. Grâce à la pré-condition, cette post-condition est vérifiée jusqu'à \texttt{na}. On aura donc besoin de l'invariant de boucle dans le cas où $na < nv$, c'est-à-dire lorsque l'on doit compléter les \assignment\ restantes.
 
-Ensuite, premièrement, \code{forall i. nc <= i < length cl -> cl[i] = old cl[i]} signifie que l'on ne modifie plus l'ordre des clauses déjà satisfaites. Comme on écrit dans \texttt{cl} dans la fonction \scan, cette propriété devra également être vérifiée dans la fonction \scan. Deuxièmement, \code{forall i. 0 <= i < na -> mm[i] = old mm[i]} signifie que l'on ne modifie pas l'\assignment\ déjà effectué avant l'entrée dans la fonction, c'est-à-dire que l'on n'assigne que les variables encore non assignées. Là encore, un invariant de boucle est nécessaire dans le cas où $na < nv$. Troisièmement, \texttt{s -> forall i. 0 <= i < length cl -> ok\_cls mm nv cl[i]} signifie que, si l'ensemble de clauses est satisfiable, alors à la fin de l'algorithme toutes les clauses sont satisfaites. Pour prouver cette propriété, il faudra l'exprimer dans la fonction \scan, car c'est elle qui vérifie la satisfiabilité des clauses. Les deux premières propriétés sont nécessaires uniquement pour prouver la troisième. En effet, si l'on ne modifie pas les clauses déjà satisfaites, que l'on ne change pas l'\assignment\ déjà effectué, et que l'on progresse monotonement vers la satisfiabilité (cf. contrat de \scan), alors on finira par satisfaire toutes les clauses si un \assignment\ le permet.
+Ensuite, premièrement, \texttt{forall i. nc <= i < length cl -> cl[i] = old cl[i]} signifie que l'on ne modifie plus l'ordre des clauses déjà satisfaites. Comme on écrit dans \texttt{cl} dans la fonction \scan, cette propriété devra également être vérifiée dans la fonction \scan. Deuxièmement, \code{forall i. 0 <= i < na -> mm[i] = old mm[i]} signifie que l'on ne modifie pas l'\assignment\ déjà effectué avant l'entrée dans la fonction, c'est-à-dire que l'on n'assigne que les variables encore non assignées. Là encore, un invariant de boucle est nécessaire dans le cas où $na < nv$. Troisièmement, \texttt{s -> forall i. 0 <= i < length cl -> ok\_cls mm nv cl[i]} signifie que, si l'ensemble de clauses est satisfiable, alors à la fin de l'algorithme toutes les clauses sont satisfaites. Pour prouver cette propriété, il faudra l'exprimer dans la fonction \scan, car c'est elle qui vérifie la satisfiabilité des clauses. Les deux premières propriétés sont nécessaires uniquement pour prouver la troisième. En effet, si l'on ne modifie pas les clauses déjà satisfaites, que l'on ne change pas l'\assignment\ déjà effectué, et que l'on progresse monotonement vers la satisfiabilité (cf. contrat de \scan), alors on finira par satisfaire toutes les clauses si un \assignment\ le permet.
+
+À présent, pour vérifier la complétude de l'algorithme, nous avons besoin de la postcondition: \texttt{not s -> forall mc. is\_assignment mc nv -> array\_eq (old mm) mc na -> exists i. 0 <= i < length cl $\wedge$ not ok\_cls mc nv cl[i]}.  Elle signifie que si l'ensemble de clauses n'est pas satisfiable, alors il n'existe aucun \texttt{assignment} ayant les mêmes assignations que nos variables déjà fixées qui satisfasse toutes les clauses simultanément. Par rapport à la version de cette postcondition dans la fonction \sat, nous avons affaibli la propriété pour ne considérer que les assignations compatibles avec l'état actuel. Cela suffit néanmoins pour prouver la postcondition de \sat, car on commence initialement sans aucune variable assignée (hormis la valeur \textit{dégénérée} à l'indice 0).
+
+Ainsi, cette version affaiblie est plus facile à démontrer, car elle contraint la propriété à suivre nos choix d'assignations. Cela suffit à la preuve puisque nous explorons exhaustivement tous les cas pertinents (nous n'explorons pas toutes les assignations possibles, car nous effectuons un \textit{backtrack} dès qu'une contradiction est détectée). De plus, dans la fonction \scan, nous devons prouver que cette propriété est maintenue et que toutes les clauses de la zone \textit{active} ne sont pas encore satisfaites (dans le cas où l'on renvoie \texttt{true}; car dans le cas contraire, on ne parcourt pas toutes les clauses de la zone \textit{active} en renvoyant \texttt{false} prématurément). Ces deux propriétés de la fonction \scan\ servent à prouver l'existence d'une clause non satisfaite pour toutes les assignations de variables compatibles avec nos choix (dans le cas où l'on renvoie \texttt{false}). En effet, si la fonction \scan\ échoue immédiatement, il est trivial qu'une clause n'est pas satisfaite puisqu'on a trouvé une clause fausse. Dans le cas où \scan\ n'échoue pas, il faut bien prouver qu'il existe une clause non satisfaite dans la zone active; sinon, lors du \textit{backtracking} final après de multiples échecs, il serait impossible de prouver qu'il existait effectivement une clause non satisfaite au préalable.
+
+Néanmoins, comme nous permutons les clauses, nous devons fournir à Why3 le lemme \texttt{permut\_preserve\_existence\_of\_notOkCls} afin qu'il puisse faire le lien entre les différentes instances du tableau des clauses, celui-ci pouvant différer à chaque appel à la fonction \scan.
 
 Enfin, \code{permut_all (old cl) cl} exprime le fait que l'on effectue uniquement des \textit{swaps} dans le tableau \texttt{cl}, et que l'on obtient donc une permutation de l'ensemble de clauses initial. Comme la fonction \dpll\ ne modifie pas directement le tableau \texttt{cl}, cette propriété devra être prouvée dans la fonction \scan.
 
@@ -205,7 +246,7 @@ done
 
 Tout d'abord, \code{forall j. 0 <= j < na -> mm[j] = old mm[j]} signifie que l'on ne modifie pas l'\assignment\ déjà effectué avant l'entrée dans la fonction, c'est-à-dire que l'on n'assigne que les variables encore non assignées. Cette condition est vérifiée ici, car la boucle démarre à $i = na$ et progresse jusqu'à \texttt{nv}, ce qui implique que seules les variables non encore assignées sont modifiées. Cet invariant sert à prouver la stabilité de la post-condition \code{forall i. 0 <= i < na -> mm[i] = old mm[i]} au sein de la boucle.
 
-Ensuite, \code{is_assignment mm i} assure que toutes les variables jusqu'à \texttt{i} exclu sont bien assignées. Cet invariant sert à prouver la post-condition \texttt{s -> is\_assignment mm (length mm)}, qui garantit que toutes les variables sont assignées si l'ensemble de clauses est satisfiable. Comme \texttt{i} tend vers $nv = length \, mm$, on obtient bien \texttt{is\_assignment mm (length mm)} lorsque l'ensemble de clauses est satisfiable.
+Ensuite, \code{is_assignment mm i} assure que toutes les variables jusqu'à \texttt{i} exclu sont bien assignées. Cet invariant sert à prouver la post-condition \texttt{s -> is\_assignment mm nv}, qui garantit que toutes les variables sont assignées si l'ensemble de clauses est satisfiable. Comme \texttt{i} tend vers $nv = length \, mm$, on obtient bien \texttt{is\_assignment mm (length mm)} lorsque l'ensemble de clauses est satisfiable.
 
 % ------------------------------------------------------------------------------------------
 % ------------------------------------------------------------------------------------------
@@ -226,6 +267,10 @@ let scan (mm: assignment) (cl: array cls) (nv na nc: int) : (b: bool, mc: int)
   ensures { forall i. nc <= i < length cl -> cl[i] = old cl[i] }
   ensures { forall i. mc <= i < length cl -> ok_cls mm na cl[i] }
 
+  ensures { b -> forall i. 0 <= i < mc -> not ok_cls mm na cl[i] }
+  ensures { not b -> forall mm'. is_assignment mm' nv ->
+    array_eq mm mm' na -> exists i. 0 <= i < nc /\ not ok_cls mm' nv cl[i] }
+
   ensures { permut_all (old cl) cl }
 \end{minted}
 accompagné des invariants de boucle suivants:
@@ -236,6 +281,8 @@ while i < mc do
   invariant { 0 <= i <= mc <= nc }
   invariant { forall j. nc <= j < length cl -> cl[j] = old cl[j] }
   invariant { forall j. mc <= j < length cl -> ok_cls mm na cl[j] }
+
+  invariant { forall j. 0 <= j < i -> not ok_cls mm na cl[j] }
 
   invariant { permut_all (old cl) cl }
   ...
@@ -283,6 +330,10 @@ ensures { 0 <= mc <= nc }
 ensures { forall i. nc <= i < length cl -> cl[i] = old cl[i] }
 ensures { forall i. mc <= i < length cl -> ok_cls mm na cl[i] }
 
+ensures { b -> forall i. 0 <= i < mc -> not ok_cls mm na cl[i] }
+ensures { not b -> forall mm'. is_assignment mm' nv ->
+  array_eq mm mm' na -> exists i. 0 <= i < nc /\ not ok_cls mm' nv cl[i] }
+
 ensures { permut_all (old cl) cl }
 \end{minted}
 
@@ -291,6 +342,8 @@ Tout d'abord, \code{0 <= mc <= nc} signifie que la nouvelle zone \textit{active}
 Deuxièmement, \code{forall i. nc <= i < length cl -> cl[i] = old cl[i]} est déjà présente dans la fonction \dpll ; son explication est donc la même. Elle sera prouvée dans la boucle grâce à un invariant.
 
 Troisièmement, \texttt{forall i. mc <= i < length cl -> ok\_cls mm na cl[i]} signifie que toutes les clauses dans la nouvelle zone \textit{inactive} sont satisfaites. Cette condition sera prouvée grâce à un invariant dans la boucle. Ces trois propriétés sont nécessaires pour prouver, dans la fonction \dpll, que si l'ensemble de clauses est satisfiable, alors toutes les clauses le sont également.
+
+Ensuite, la propriété \texttt{not b -> forall mm'. is\_assignment mm' nv -> array\_eq mm mm' na -> exists i. 0 <= i < nc $\wedge$ not ok\_cls mm' nv cl[i]} a la même signification que celle utilisée dans la fonction \dpll. Cette propriété est vraie par définition de la fonction \scan\ et n'a donc pas besoin d'invariant de boucle pour être prouvée: en effet, lorsque l'on renvoie \texttt{false}, nous avons trouvé une clause fausse, donc non satisfaite. De plus, \texttt{b -> forall i. 0 <= i < mc -> not ok\_cls mm na cl[i]} signifie qu'aucune clause de la zone \textit{active} n'est encore satisfaite, ce qui correspond précisément à la définition de la zone \textit{active}. Néanmoins, une subtilité nous force à ne la prouver que dans le cas où l'on renvoie \texttt{true} car, dans le cas contraire, nous ne vérifions pas exhaustivement toutes les clauses de la zone \textit{active}. Pour démontrer cette propriété, il suffit de l'ajouter en tant qu'invariant de boucle.
 
 Enfin, \code{permut_all (old cl) cl} est déjà présente dans la fonction \dpll ; son explication est donc identique. Cette propriété est prouvée dans la boucle grâce à un invariant, car c'est à cet endroit que l'on effectue les \textit{swaps}.
 
@@ -303,6 +356,8 @@ while i < mc do
   invariant { forall j. nc <= j < length cl -> cl[j] = old cl[j] }
   invariant { forall j. mc <= j < length cl -> ok_cls mm na cl[j] }
 
+  invariant { forall j. 0 <= j < i -> not ok_cls mm na cl[j] }
+
   invariant { permut_all (old cl) cl }
   ...
 done
@@ -314,6 +369,8 @@ Ensuite, \code{forall j. nc <= j < length cl -> cl[j] = old cl[j]} permet de pro
 
 De plus, \code{forall j. mc <= j < length cl -> ok_cls mm na cl[j]} permet de prouver que toutes les clauses de la nouvelle zone \textit{inactive} sont satisfaites par l'\assignment. Cette propriété est préservée par la boucle, car on ne place dans cette zone que des clauses nouvellement satisfaites par l'\assignment, en plus de celles déjà satisfaites auparavant (ce qui est assuré par la pré-condition).
 
+En outre, l'invariant \code{forall j. 0 <= j < i -> not ok_cls mm na cl[j]} permet de prouver que toutes les clauses de la nouvelle zone \textit{active} ne sont pas encore satisfaites (uniquement dans le cas où l'on ne renvoie pas \texttt{false}, car sinon l'itération s'arrête prématurément). Cette propriété est facilement prouvable car les clauses se trouvant entre $0$ et $i$ (exclu) sont précisément celles qui ne sont pas encore satisfaites; en effet, toutes les clauses désormais satisfaites sont déplacées dans la zone \textit{inactive}, donc en dehors de la portée de $i$ puisque $i \leq mc$.
+
 Enfin, \code{permut_all (old cl) cl} assure que les \textit{swaps} produisent uniquement une permutation des clauses à travers les différentes itérations de la boucle.
 
 % ------------------------------------------------------------------------------------------
@@ -323,14 +380,27 @@ Enfin, \code{permut_all (old cl) cl} assure que les \textit{swaps} produisent un
 
 \subsection{Synthèse}
 
-TODO
+J'ai réussi à implémenter l'algorithme DPLL pour 3-SAT et à vérifier sa correction ainsi que sa complétude. Pour ce faire, j'ai dû ajouter des préconditions, postconditions, invariants, etc\ldots, pour chaque propriété de la fonction \sat.
+
+Le premier point positif de mon implémentation est qu'elle comporte relativement peu de spécifications (préconditions, postconditions, invariants, \ldots) en plus d'être assez simple, utilisant peu de prédicats ou de lemmes.
+
+Le second point positif réside dans l'implémentation que j'ai proposée pour les fonctions \scan\ et \dpll: elles sont proches, voire identiques, à celles que j'aurais écrites en OCaml, par exemple. Ainsi, le code n'a pas été volontairement dégradé en termes d'efficacité pour faciliter les preuves.
+
+Le troisième point positif est que les spécifications introduites pour chacune des postconditions de la fonction \sat\ sont indépendantes. On peut donc modifier et/ou remplacer les spécifications correspondant à chaque postcondition librement, sans casser la vérification des autres postconditions.
 
 \subsection{Problèmes rencontrés}
 
-TODO
+J'ai rencontré deux problèmes.
+
+Le premier est que j'ai dû ajouter un lemme auxiliaire pour permettre à Why3 de prouver une propriété qui était vraie et théoriquement prouvable à partir des contrats présents. Une version sans ce lemme aurait peut-être été plus élégante ou efficace avec des contrats plus forts.
+
+Le deuxième est que Why3 a du mal à prouver la postcondition de la fonction \dpll\ correspondant à la complétude de l'algorithme DPLL pour 3-SAT. En effet, pour que Why3 arrive à la prouver, il faut utiliser la fonctionnalité \textit{Auto level 3}. Avec des contrats plus forts, cela aurait sûrement pu être évité afin d'obtenir une vérification plus rapide.
 
 \subsection{Remarques}
 
-TODO
+Bien que le projet fît plus ou moins peur à première vue, il s'est finalement plutôt bien passé malgré le fait que le résultat ne soit pas totalement satisfaisant pour les raisons évoquées précédemment.
 
+Ce projet m'a permis, indirectement, d'expérimenter la logique de Hoare (qui m'était peu familière avant le début du projet) à travers la recherche de préconditions, postconditions, invariants, etc. La vérification de cet algorithme, qui n'est pas trivial (notamment avec l'utilisation du tableau des clauses), m'a semblé plus agréable qu'avec un prouveur manuel comme Rocq, par exemple.
+
+% ------------------------------------------------------------------------------------------
 % ------------------------------------------------------------------------------------------
